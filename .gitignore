@@ -1,0 +1,10 @@
+build/
+dslc
+*.ll
+*.o
+/prog
+cheap_prices.txt
+headlines.txt
+tests/ok/*.txt
+.vscode/c_cpp_properties.json
+.vscode/settings.json

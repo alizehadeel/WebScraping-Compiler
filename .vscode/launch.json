@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "debug dslc on current .dsl",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/dslc",
+      "args": ["${file}", "--ast"],
+      "cwd": "${fileDirname}",
+      "MIMode": "gdb",
+      "preLaunchTask": "build"
+    }
+  ]
+}
