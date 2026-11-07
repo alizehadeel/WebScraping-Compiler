@@ -1,0 +1,23 @@
+Program
+  Main
+    Hold a @1
+      Num 3600 @1
+    Hold b @2
+      Num 21 @2
+    Hold c @3
+      Binary / @3
+        Num 7 @3
+        Num 0 @3
+    Hold d @4
+      Num -4 @4
+    Hold e @5
+      Num 0 @5
+    Hold f @6
+      Binary + @6
+        Var a @6
+        Num 2 @6
+    Hold g @7
+      RowNew num @7
+        Num 5 @7
+    Show @8
+      Num -9223372036854775808 @8

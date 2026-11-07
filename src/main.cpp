@@ -1,6 +1,7 @@
 // main.cpp — dslc driver (owner: Hareem)
 //
 //   ./dslc prog.dsl --ast       parse and print the AST            (M1)
+//   ./dslc prog.dsl --ast-opt   same, after opt.cpp (debug aid; not in the plan)
 //   ./dslc prog.dsl --check     parse + semantic analysis only     (M2)
 //   ./dslc prog.dsl --run       interpret the program              (M2, Phase 1)
 //   ./dslc prog.dsl -o prog.ll  emit LLVM IR                       (M3, Phase 2)
@@ -14,13 +15,15 @@
 #include <cstring>
 
 #include "frontend.h"
+#include "opt.h"
 
 // TODO(M2): once Aleena's sema.h / interp lands, include it here and replace
 // the "not implemented" branches below, e.g.
 //   #include "sema.h"
 //   if (!analyze(prog)) return 1;     // prints all errors itself
 //   return interpret(prog);
-// TODO(M3): #include "codegen.h" and call the emitter for -o.
+// TODO(M3): #include "codegen.h"; for -o run sema, then optimize(prog), then
+// the emitter.
 
 const char *g_filename = "<input>";
 
@@ -35,16 +38,17 @@ void fatalError(int line, const char *fmt, ...) {
 }
 
 static void usage() {
-    fputs("usage: dslc <file.dsl> (--ast | --check | --run | -o <out.ll>)\n", stderr);
+    fputs("usage: dslc <file.dsl> (--ast | --ast-opt | --check | --run | -o <out.ll>)\n", stderr);
     exit(2);
 }
 
 int main(int argc, char **argv) {
     const char *input = nullptr, *outLL = nullptr;
-    enum { NONE, AST, CHECK, RUN, EMIT } mode = NONE;
+    enum { NONE, AST, AST_OPT, CHECK, RUN, EMIT } mode = NONE;
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--ast")) mode = AST;
+        else if (!strcmp(argv[i], "--ast-opt")) mode = AST_OPT;
         else if (!strcmp(argv[i], "--check")) mode = CHECK;
         else if (!strcmp(argv[i], "--run")) mode = RUN;
         else if (!strcmp(argv[i], "-o")) {
@@ -62,6 +66,10 @@ int main(int argc, char **argv) {
 
     switch (mode) {
         case AST:
+            printAst(prog);
+            return 0;
+        case AST_OPT:
+            optimize(prog);
             printAst(prog);
             return 0;
         case CHECK:

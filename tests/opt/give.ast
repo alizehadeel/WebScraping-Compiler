@@ -1,0 +1,16 @@
+Program
+  Recipe f(num x) -> num @1
+    If @2
+      cond:
+        Binary > @2
+          Var x @2
+          Num 0 @2
+      then:
+        Give @3
+          Num 1 @3
+    Give @6
+      Num 0 @6
+  Main
+    Show @10
+      Call f @10
+        Num 5 @10

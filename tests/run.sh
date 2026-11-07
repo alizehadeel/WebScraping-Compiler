@@ -4,6 +4,7 @@
 #   tests/run.sh [--ast | --check | --run]      (default: --run)
 #
 # tests/ok/*.dsl   must succeed; under --run its stdout must equal the .out file
+# tests/opt/*.dsl  `--ast-opt` output must equal the .ast file (optimizer)
 # tests/err/*.dsl  must fail; first line is   # expect: <line>: <part of message>
 #                  stderr must mention that line ("file:N:" or "line N:") and
 #                  contain the message part.
@@ -52,6 +53,14 @@ for f in tests/err/*.dsl; do
     fi
     if ! grep -qE "(:$line: |^line $line: )" "$tmp/err" || ! grep -qF -- "$msg" "$tmp/err"; then
         red "FAIL $f (expected line $line: $msg)"; sed 's/^/     got: /' "$tmp/err" | head -3; fail=$((fail+1)); continue
+    fi
+    pass=$((pass+1))
+done
+
+for f in tests/opt/*.dsl; do
+    [ -e "$f" ] || continue
+    if ! "$DSLC" "$f" --ast-opt 2>&1 | diff -u "${f%.dsl}.ast" - >"$tmp/diff"; then
+        red "FAIL $f (optimized AST differs)"; sed 's/^/     /' "$tmp/diff" | head -20; fail=$((fail+1)); continue
     fi
     pass=$((pass+1))
 done
