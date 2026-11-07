@@ -1,0 +1,7 @@
+build/
+dslc
+*.o
+*.ll
+dev/devc
+cheap_prices.txt
+headlines.txt
