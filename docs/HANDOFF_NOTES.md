@@ -55,3 +55,25 @@ The node definitions and the comments that explain every field are in `src/ast.h
 - Error messages contain fixed phrases that the error tests match on (for example `undeclared variable`,
   `needs num`, `arguments`, `preceded by an open`, `not a row`). Do not reword them without updating `tests/err/`.
 - All errors are sorted by line before printing; a duplicate recipe is reported on the second definition.
+
+## For Aleena - Phase 2 (`codegen_recipes.cpp`)
+
+Written with the core codegen (`codegen.h` / `codegen.cpp`).
+
+1. **Interface.** Your seven methods are declared in `src/codegen.h` and are placeholders in
+   `src/codegen_recipes.cpp` (the plan for each one is at the top of that file). Until a method is real,
+   `dslc -o` exits with code 3 and `tests/run.sh --compile` reports the program as SKIP.
+2. **Values.** num = `i64`, text and rows = `ptr`. `genExpr()` returns the operand without its type
+   (`%t12`, `42`, `@.str.3`); use `CodeGen::llType(e.type)` for the type.
+3. **Variables.** `varAddr(sym)` returns the variable's alloca (created in the entry block on first use).
+   For parameters: `store(param.type, "%" + param.name, varAddr(param.sym))` at the top of the body.
+4. **Functions.** `beginFunction()`, then generate the body, then `endFunction("define i64 @dsl_name(i64 %n)")`.
+   Name recipes with `recipeName(r)` (`@dsl_<name>`, so a recipe called `main` cannot clash with `@main`).
+   Set `currentRecipe` while generating a recipe; `genGive` needs its return type.
+5. **Terminators.** `ret()` and `br()` mark the block as finished; anything emitted afterwards goes into a
+   fresh unreachable block automatically. At the end of a recipe body, emit the default return only
+   `if (!terminated())`.
+6. **Rows.** `%Row = type { i64, i64, ptr }` (len, is_text, data) is declared at the top of the module.
+   count = `getelementptr %Row, ptr %r, i32 0, i32 0` + load; data = field 2.
+7. **Check.** `make test` runs `tests/run.sh --compile`: every program that compiles must print exactly
+   its `.out` file. 16 programs are currently skipped waiting for this file.
