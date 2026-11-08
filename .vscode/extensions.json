@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "ms-vscode-remote.remote-wsl",
+    "ms-vscode.cpptools",
+    "ms-vscode.makefile-tools",
+    "daohong-emilio.yash",
+    "colejcummins.llvm-syntax-highlighting",
+    "eamodio.gitlens"
+  ]
+}
