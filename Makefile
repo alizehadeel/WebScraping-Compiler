@@ -67,6 +67,8 @@ $(BUILD):
 
 test: dslc test-rt
 	./tests/run.sh $(MODE)
+	@if command -v clang >/dev/null && command -v llvm-as >/dev/null; then ./tests/run.sh --compile; \
+	 else echo "clang/llvm-as not installed: skipping the Phase 2 compile tests"; fi
 
 # Alizeh's standalone runtime test (needs the real runtime/rt.c and libxml2)
 test-rt: $(BUILD)/test_rt
