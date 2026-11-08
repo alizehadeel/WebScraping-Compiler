@@ -2,7 +2,7 @@
 # tests/run.sh - the test runner (make test)
 # OWNER: Hareem | PHASE: 1 | STATUS: DONE (Phase 2 compile-and-compare: TODO)
 #
-#   tests/run.sh [--ast | --check | --run]      (default: --run)
+#   tests/run.sh [--ast | --check | --run | --compile]      (default: --run)
 #
 # tests/ok/*.dsl   must succeed; under --run its stdout must equal the .out file
 # tests/opt/*.dsl  `--ast-opt` output must equal the .ast file (optimizer)
@@ -12,8 +12,11 @@
 # Under --ast only lexical/syntax errors can show up, so an err test that
 # parses fine is reported as SKIP rather than FAIL.
 #
-# Phase 2 (M3): also compile each ok program with -o and compare the binary's
-# output with --run.  TODO once codegen exists.
+# --compile (Phase 2): every tests/ok program is compiled with -o, checked with
+# llvm-as, passed through the middle-end, linked with the runtime and run; its
+# output must equal the .out file (the interpreter's output). Programs that use
+# a construct codegen does not support yet (dslc exits 3) are reported as SKIP.
+# The middle-end command can be overridden:  MIDDLE_END="opt -O2 -S" tests/run.sh --compile
 
 set -u
 cd "$(dirname "$0")/.."
@@ -24,6 +27,32 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
+
+if [ "$MODE" = "--compile" ]; then
+    MIDDLE_END="${MIDDLE_END:-opt -passes=mem2reg -S}"
+    XML="$(xml2-config --cflags --libs)"
+    for f in tests/ok/*.dsl; do
+        [ -e "$f" ] || continue
+        exp="${f%.dsl}.out"; dir="$(dirname "$f")"; base="$(basename "$f" .dsl)"
+        "$DSLC" "$f" -o "$tmp/$base.ll" 2>"$tmp/err"; code=$?
+        if [ $code -eq 3 ]; then skip=$((skip+1)); continue; fi
+        if [ $code -ne 0 ]; then red "FAIL $f (dslc -o exit $code)"; sed 's/^/     /' "$tmp/err" | head -5; fail=$((fail+1)); continue; fi
+        if ! llvm-as "$tmp/$base.ll" -o /dev/null 2>"$tmp/err"; then
+            red "FAIL $f (invalid IR)"; sed 's/^/     /' "$tmp/err" | head -5; fail=$((fail+1)); continue; fi
+        if ! $MIDDLE_END "$tmp/$base.ll" -o "$tmp/$base.opt.ll" 2>"$tmp/err"; then
+            red "FAIL $f (middle-end)"; sed 's/^/     /' "$tmp/err" | head -5; fail=$((fail+1)); continue; fi
+        if ! clang -Wno-override-module "$tmp/$base.opt.ll" runtime/rt.c -Iruntime $XML -o "$tmp/$base.bin" 2>"$tmp/err"; then
+            red "FAIL $f (link)"; sed 's/^/     /' "$tmp/err" | head -5; fail=$((fail+1)); continue; fi
+        ( cd "$dir" && "$tmp/$base.bin" ) >"$tmp/out" 2>"$tmp/err"
+        if ! diff -u "$exp" "$tmp/out" >"$tmp/diff"; then
+            red "FAIL $f (compiled output differs from --run)"; sed 's/^/     /' "$tmp/diff" | head -20; fail=$((fail+1)); continue; fi
+        pass=$((pass+1))
+    done
+    echo
+    if [ $fail -eq 0 ]; then green "all passed: $pass compiled and matched, $skip skipped (mode --compile)"; else red "$fail failed, $pass passed, $skip skipped (mode --compile)"; fi
+    [ $fail -eq 0 ]
+    exit
+fi
 
 for f in tests/ok/*.dsl; do
     [ -e "$f" ] || continue

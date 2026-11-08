@@ -1,5 +1,5 @@
 // src/main.cpp - the dslc driver
-// OWNER: Hareem | PHASE: 1 | STATUS: DONE (Phase 2: -o added once codegen exists)
+// OWNER: Hareem | PHASE: 1 + 2 | STATUS: DONE
 //
 //   ./dslc prog.dsl --ast        parse and print the AST
 //   ./dslc prog.dsl --ast-opt    parse, run opt.cpp, print the AST (debug aid)
@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "codegen.h"
 #include "frontend.h"
 #include "interp.h"
 #include "opt.h"
@@ -77,8 +78,7 @@ int main(int argc, char **argv) {
     if (mode == CHECK) return 0;
     if (mode == RUN) return runProgram(*prog);
 
-    // EMIT
-    (void)outLL;
-    fprintf(stderr, "dslc: -o is not implemented yet (needs codegen.cpp)\n");
-    return 3;
+    // EMIT: optimizations run only here, so --run stays the reference
+    optimize(*prog);
+    return emitProgram(*prog, outLL);
 }
