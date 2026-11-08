@@ -1,0 +1,9 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "build", "type": "shell", "command": "make", "group": { "kind": "build", "isDefault": true }, "problemMatcher": ["$gcc"] },
+    { "label": "test", "type": "shell", "command": "make test", "group": { "kind": "test", "isDefault": true } },
+    { "label": "clean", "type": "shell", "command": "make clean" },
+    { "label": "dslc --ast (current file)", "type": "shell", "command": "make && ./dslc ${file} --ast" }
+  ]
+}

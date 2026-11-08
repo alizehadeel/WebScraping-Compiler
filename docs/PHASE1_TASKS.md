@@ -11,13 +11,13 @@ Phase 2 (LLVM IR) starts after M2.
 
 | File | Owner | Status |
 |---|---|---|
-| `src/lexer.l` | **Hareem** | TODO |
-| `src/parser.y` | **Hareem** | TODO |
-| `src/ast.h` | **Hareem** (first draft written by Aleena) | DRAFT - Hareem please review and take over |
-| `src/ast.cpp` | **Hareem** | TODO |
-| `src/main.cpp` | **Hareem** | TODO |
-| `Makefile` | **Hareem** | untested skeleton |
-| `tests/run.sh` | **Hareem** | TODO |
+| `src/lexer.l` | **Hareem** | DONE |
+| `src/parser.y` | **Hareem** | DONE |
+| `src/ast.h` | **Hareem** (first draft written by Aleena) | DONE - Aleena's draft kept unchanged; the parser builds it |
+| `src/ast.cpp` | **Hareem** | DONE |
+| `src/main.cpp` | **Hareem** | DONE |
+| `Makefile` | **Hareem** | DONE |
+| `tests/run.sh` | **Hareem** | DONE |
 | `src/sema.h`, `src/sema.cpp` | **Aleena** | DONE |
 | `src/interp.h`, `src/interp.cpp` | **Aleena** | DONE |
 | `runtime/rt.h` | **Alizeh** | contract copied from the work plan - finalise |
@@ -39,16 +39,16 @@ Not Phase 1 (do not start yet): `src/opt.cpp` (Hareem), `src/codegen.h`, `src/co
 
 ## Hareem - front end and integration
 
-- [ ] Lexer: every keyword, identifiers, number literals (error if too large for 64 bits), text literals with `\"` `\\` `\n`, `#` comments
-- [ ] Lexer: longest match for `<- << <= <`, `-> -`, `>> >= >`; a lone `=` is an error
-- [ ] Lexer: one NL token per line that has a token, plus one at end of file if the last line has no newline; track line numbers
-- [ ] Parser: full grammar from the proposal, precedence with `%left` / `%nonassoc` (comparisons non-associative), **zero** shift/reduce conflicts (`bison -Wcounterexamples`)
-- [ ] Parser: `<< else >>` on one line, `else if` chains, syntax errors that name the line and the unexpected token
-- [ ] AST construction (follow `docs/HANDOFF_NOTES.md`) and the `--ast` printer
-- [ ] Driver `src/main.cpp` with `--ast`, `--check`, `--run` (and `-o` in Phase 2); Makefile targets `make`, `make test`, `make clean`
-- [ ] `tests/run.sh`: runs `tests/ok` and `tests/err` under `--run`
-- [ ] Syntax-error and lexical-error tests in `tests/err/`
-- [ ] Review `src/ast.h` and `src/sema.*` / `src/interp.*` (they were written against the draft AST)
+- [x] Lexer: every keyword, identifiers, number literals (error if too large for 64 bits), text literals with `\"` `\\` `\n`, `#` comments
+- [x] Lexer: longest match for `<- << <= <`, `-> -`, `>> >= >`; a lone `=` is an error
+- [x] Lexer: one NL token per line that has a token, plus one at end of file if the last line has no newline; track line numbers
+- [x] Parser: full grammar from the proposal, precedence with `%left` / `%nonassoc` (comparisons non-associative), **zero** shift/reduce conflicts (`bison -Wcounterexamples`)
+- [x] Parser: `<< else >>` on one line, `else if` chains, syntax errors that name the line and the unexpected token
+- [x] AST construction (follow `docs/HANDOFF_NOTES.md`) and the `--ast` printer
+- [x] Driver `src/main.cpp` with `--ast`, `--check`, `--run` (and `-o` in Phase 2); Makefile targets `make`, `make test`, `make clean`
+- [x] `tests/run.sh`: runs `tests/ok` and `tests/err` under `--run`
+- [x] Syntax-error and lexical-error tests in `tests/err/`
+- [x] Review `src/ast.h` and `src/sema.*` / `src/interp.*` (they were written against the draft AST)
 
 ## Aleena - semantics and interpreter
 

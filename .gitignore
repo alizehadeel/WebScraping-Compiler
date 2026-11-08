@@ -5,3 +5,6 @@ dslc
 dev/devc
 cheap_prices.txt
 headlines.txt
+tests/ok/*.txt
+tests/ok/*.ll
+*.bin
