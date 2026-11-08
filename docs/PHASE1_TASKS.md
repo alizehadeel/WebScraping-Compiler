@@ -20,10 +20,10 @@ Phase 2 (LLVM IR) starts after M2.
 | `tests/run.sh` | **Hareem** | DONE |
 | `src/sema.h`, `src/sema.cpp` | **Aleena** | DONE |
 | `src/interp.h`, `src/interp.cpp` | **Aleena** | DONE |
-| `runtime/rt.h` | **Alizeh** | contract copied from the work plan - finalise |
-| `runtime/rt.c` | **Alizeh** | TODO |
-| `runtime/test_rt.c` | **Alizeh** | TODO |
-| `examples/shop.html`, `examples/news.html` | **Alizeh** | TODO |
+| `runtime/rt.h` | **Alizeh** | DONE - Row layout: the work plan's { len, is_text, data } |
+| `runtime/rt.c` | **Alizeh** | DONE |
+| `runtime/test_rt.c` | **Alizeh** | DONE |
+| `examples/shop.html`, `examples/news.html` | **Alizeh** | DONE |
 | `tests/ok/`, `tests/err/` | everyone - each person tests their own area | Aleena's tests done (see below) |
 
 Not Phase 1 (do not start yet): `src/opt.cpp` (Hareem), `src/codegen.h`, `src/codegen.cpp` (Alizeh),
@@ -54,7 +54,7 @@ Not Phase 1 (do not start yet): `src/opt.cpp` (Hareem), `src/codegen.h`, `src/co
 
 M0
 - [x] 4 example programs: `isort`, `msort`, `prices`, `headlines` (in `examples/`)
-- [ ] Expected output for `prices.dsl` and `headlines.dsl` - **blocked** until Alizeh's `shop.html` / `news.html` exist
+- [x] Expected output for `prices.dsl` and `headlines.dsl` (added with the runtime: `examples/*.out`, `tests/ok/prices.out`, `tests/ok/headlines.out`; Aleena please double-check)
 - [x] Error programs in `tests/err/` (34 programs, covering every compile-time error in the proposal and the run-time errors that need no HTML)
 
 M1 / M2
@@ -67,7 +67,7 @@ M1 / M2
 - [x] Keep going after an error and report all of them (`ERROR` type, no cascades)
 - [x] Interpreter: values, a fresh frame per call, short-circuit `and` / `or`, `for` bounds evaluated once, `give` as a return signal, default return values, all run-time checks through `rt_*`
 - [x] 18 `tests/ok` programs with hand-computed `.out` files
-- [ ] Re-run everything with Hareem's real parser and Alizeh's real runtime (so far tested with `dev/`)
+- [x] Re-run everything with Hareem's real parser and Alizeh's real runtime: all tests pass, sanitizers clean
 - [ ] README section: type rules and errors (M5)
 
 Tested so far with the temporary harness in `dev/` (a throwaway parser and a stub runtime): all 52 tests pass,
@@ -75,15 +75,15 @@ and the sanitizers (address + undefined behaviour) are clean.
 
 ## Alizeh - runtime and core codegen
 
-- [ ] `shop.html` and `news.html` test pages (M0)
-- [ ] `rt_open`: libxml2 `htmlReadFile` (recover mode, warnings off); keep one current page, free the previous one
-- [ ] Selector parser for the supported subset, turned into an XPath query (descendants joined with `//`, a class matched with `contains(concat(' ', normalize-space(@class), ' '), ' price ')`); `rt_selector_valid` uses the same parser
-- [ ] `rt_grab`: text content of each match, trimmed with inner whitespace collapsed; number conversion exactly as the proposal states, with its run-time error
-- [ ] Rows, `rt_show_*`, `rt_save_*`, `rt_check_index`, `rt_check_div`, `rt_text_eq`; every error prints the source line and exits with 1
-- [ ] `runtime/test_rt.c`: a standalone test that opens both test pages and prints what it grabs
-- [ ] Finalise `runtime/rt.h` (including the Row layout question, see `docs/HANDOFF_NOTES.md`)
-- [ ] Run-time error tests in `tests/err/` for the errors that need real files (page cannot be read, `grab ... as num` with no digits, output file cannot be written)
-- [ ] Risk: confirm `libxml2-dev` installs on the grading machine; put the install command in the README
+- [x] `shop.html` and `news.html` test pages (M0)
+- [x] `rt_open`: libxml2 `htmlReadFile` (recover mode, warnings off); keep one current page, free the previous one
+- [x] Selector parser for the supported subset, turned into an XPath query (descendants joined with `//`, a class matched with `contains(concat(' ', normalize-space(@class), ' '), ' price ')`); `rt_selector_valid` uses the same parser
+- [x] `rt_grab`: text content of each match, trimmed with inner whitespace collapsed; number conversion exactly as the proposal states, with its run-time error
+- [x] Rows, `rt_show_*`, `rt_save_*`, `rt_check_index`, `rt_check_div`, `rt_text_eq`; every error prints the source line and exits with 1
+- [x] `runtime/test_rt.c`: a standalone test that opens both test pages and prints what it grabs
+- [x] Finalise `runtime/rt.h` (including the Row layout question, see `docs/HANDOFF_NOTES.md`)
+- [x] Run-time error tests in `tests/err/` for the errors that need real files (page cannot be read, `grab ... as num` with no digits, output file cannot be written)
+- [ ] Risk: confirm `libxml2-dev` installs on the grading machine (install command is in SETUP.md)
 
 ## Phase 2 (after M2) - for reference
 

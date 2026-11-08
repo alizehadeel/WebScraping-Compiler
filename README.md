@@ -56,14 +56,16 @@ docs/       proposal, work plan, task list, hand-off notes
 
 Errors: compile-time `prog.dsl:12: error: message`, run-time `line 12: runtime error: message`; both on stderr, exit code 1.
 
-## Try it today (before the real front end exists)
+## Build and test
 
 ```
-cd dev
-make            # builds ./devc from src/sema.cpp, src/interp.cpp, a throwaway parser and a stub runtime
-make test       # runs every program in tests/ok and tests/err
-./devc ../examples/isort.dsl --run
+sudo apt install -y build-essential flex bison libxml2-dev clang llvm   # see SETUP.md
+make            # builds ./dslc
+make test       # runtime self-test (test_rt) + every program in tests/ok, tests/err, tests/opt
+cd examples && ../dslc prices.dsl --run
 ```
+
+`dev/` (Aleena's temporary harness) is no longer needed by the build and can be deleted.
 
 ## Working rules
 

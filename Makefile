@@ -35,7 +35,7 @@ OBJS := $(patsubst src/%.cpp,$(BUILD)/%.o,$(SRCS)) \
 # Test mode for `make test`.
 MODE ?= --run
 
-.PHONY: all test clean
+.PHONY: all test test-rt clean
 all: dslc
 
 dslc: $(OBJS)
@@ -65,8 +65,16 @@ $(BUILD)/rt.o: $(RT_SRC) runtime/rt.h | $(BUILD)
 $(BUILD):
 	mkdir -p $@
 
-test: dslc
+test: dslc test-rt
 	./tests/run.sh $(MODE)
+
+# Alizeh's standalone runtime test (needs the real runtime/rt.c and libxml2)
+test-rt: $(BUILD)/test_rt
+	./$(BUILD)/test_rt > $(BUILD)/test_rt.log || { cat $(BUILD)/test_rt.log; exit 1; }
+	@tail -1 $(BUILD)/test_rt.log
+
+$(BUILD)/test_rt: runtime/test_rt.c $(RT_OBJ)
+	$(CC) $(CFLAGS) $(XML_CFLAGS) -Iruntime -o $@ $^ $(XML_LIBS)
 
 clean:
 	rm -rf $(BUILD) dslc
