@@ -1,13 +1,20 @@
 /*
  * runtime/rt.h - runtime API contract
- * OWNER: Alizeh | PHASE: 1 | STATUS: contract copied from the work plan (Alizeh: finalise)
+ * OWNER: Alizeh | PHASE: 1 | STATUS: DONE
  *
  * The interpreter calls these functions directly; Phase 2 generated IR declares
  * and calls the same functions.
  *
- * OPEN QUESTION (settle in the first meeting): the work plan declares a row as
- * { i64 len, i64 is_text, ptr data } but the proposal says { i64 length, ptr data }.
- * The proposal wins when they disagree, so decide, then update this file and ast/codegen.
+ * Row layout (decided): the work plan's three fields, { i64 len, i64 is_text, ptr data }.
+ * In IR:  %Row = type { i64, i64, ptr }
+ *         count(r)  = load i64 from field 0
+ *         r[i]      = load ptr from field 2, then getelementptr i64 / ptr by i
+ * (The proposal's Pipeline section mentions { i64 length, ptr data }; it should be
+ *  updated to match.)
+ *
+ * Errors: every function taking `line` reports problems as
+ *   line N: runtime error: <message>       on stderr, flushes stdout, exits with 1.
+ * Memory: rows and strings are never freed, so every returned pointer stays valid.
  */
 #ifndef RT_H
 #define RT_H
@@ -32,7 +39,9 @@ void  rt_show_row(Row *r);
 void  rt_save_num(int64_t v, const char *path, int64_t line);
 void  rt_save_text(const char *s, const char *path, int64_t line);
 void  rt_save_row(Row *r, const char *path, int64_t line);
-int   rt_selector_valid(const char *sel); /* also called by semantic analysis */
+/* 1 if sel is in the supported subset: tag, .class, #id, tag.class, tag#id, and those
+   separated by spaces (descendants). Needs no page: sema calls it at compile time. */
+int   rt_selector_valid(const char *sel);
 
 #ifdef __cplusplus
 }
