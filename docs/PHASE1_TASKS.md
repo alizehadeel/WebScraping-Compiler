@@ -89,6 +89,6 @@ and the sanitizers (address + undefined behaviour) are clean.
 
 | Area | Owner | Work |
 |---|---|---|
-| IR for recipes, calls, `give`, rows | Aleena | `src/codegen_recipes.cpp` - TODO (see docs/HANDOFF_NOTES.md, Phase 2) |
+| IR for recipes, calls, `give`, rows | Aleena | `src/codegen_recipes.cpp` - DONE (all 26 `tests/ok` programs compile and match) |
 | Codegen context, expressions, variables, control flow, short-circuit, runtime calls, `@main` | Alizeh | `src/codegen.h`, `src/codegen.cpp` - DONE |
 | Constant folding, unreachable-code removal, middle-end hookup, `README.pdf` | Hareem | `src/opt.cpp` DONE, `tests/run.sh --compile` DONE, middle-end: waiting for the provided one, `README.pdf` TODO |

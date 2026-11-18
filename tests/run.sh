@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/run.sh - the test runner (make test)
-# OWNER: Hareem | PHASE: 1 | STATUS: DONE (Phase 2 compile-and-compare: TODO)
+# OWNER: Hareem | PHASE: 1 | STATUS: DONE
 #
 #   tests/run.sh [--ast | --check | --run | --compile]      (default: --run)
 #
