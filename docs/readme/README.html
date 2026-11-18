@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>README - DSL for Static Web Scraping</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  :root { --ink:#1b1f24; --muted:#59636e; --rule:#d0d7de; --code-bg:#f5f7f9; --accent:#0b5cad; --ok:#1a7f37; --warn:#9a6700; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-size: 10.2pt; line-height: 1.45; color: var(--ink); background:#fff; margin:0; }
+  h1 { font-size: 22pt; margin: 0 0 4pt; letter-spacing: -0.3px; }
+  h2 { font-size: 14.5pt; margin: 20pt 0 6pt; padding-bottom: 3pt; border-bottom: 1.5px solid var(--rule); color: var(--accent); break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 13pt 0 4pt; break-after: avoid; }
+  p, ul, ol { margin: 4pt 0 7pt; }
+  li { margin: 1.5pt 0; }
+  code { font-family: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; font-size: 8.9pt; background: var(--code-bg); padding: 0 2.5px; border-radius: 3px; }
+  pre { font-family: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; font-size: 8.6pt; line-height: 1.38; background: var(--code-bg); border: 1px solid #e3e8ee; border-left: 3px solid var(--accent); border-radius: 4px; padding: 6pt 9pt; margin: 5pt 0 9pt; white-space: pre-wrap; break-inside: avoid; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  pre.out { border-left-color: var(--ok); }
+  pre.err { border-left-color: #cf222e; }
+  .label { font-size: 8pt; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 6pt 0 -3pt; }
+  table { border-collapse: collapse; width: 100%; margin: 5pt 0 10pt; font-size: 9.2pt; }
+  th, td { border: 1px solid var(--rule); padding: 3pt 6pt; vertical-align: top; text-align: left; }
+  th { background: #eef2f6; font-weight: 600; }
+  tr { break-inside: avoid; }
+  td code { font-size: 8.4pt; }
+  .subtitle { color: var(--muted); font-size: 11pt; margin-bottom: 10pt; }
+  .box { border: 1px solid var(--rule); border-radius: 6px; padding: 7pt 11pt; margin: 8pt 0 10pt; background: #fafbfc; break-inside: avoid; }
+  .box.note { border-left: 4px solid var(--warn); }
+  .box.quick { border-left: 4px solid var(--ok); }
+  .box h3 { margin-top: 2pt; }
+  .toc { columns: 2; column-gap: 24pt; font-size: 9.8pt; }
+  .toc ol { margin: 0; padding-left: 16pt; }
+  .small { font-size: 8.8pt; color: var(--muted); }
+  .cols { columns: 2; column-gap: 18pt; }
+  .pb { break-before: page; }
+  table.files td:first-child { word-break: break-word; }
+</style>
+</head>
+<body>
+
+<h1>DSL for Static Web Scraping: Compiler</h1>
+<div class="subtitle">Compiler Construction project: <b>Phase 1</b> interpreter (Flex + Bison) and <b>Phase 2</b> ahead-of-time compiler to LLVM IR. Runs on Linux.</div>
+
+<div class="box quick">
+<h3>Quick start on Ubuntu 24.04 (about 5 minutes)</h3>
+<pre><code>sudo apt update
+sudo apt install -y build-essential flex bison libxml2-dev clang llvm
+cd WebScraping-Compiler           # the project folder
+make                              # builds the compiler ./dslc
+make test                         # runs every test (both phases)
+
+cd examples
+../dslc prices.dsl --run          # Phase 1: interpret the program
+../aot.sh prices.dsl              # Phase 2: compile to a native executable ./prices
+./prices</code></pre>
+Both commands print <code>4</code> and write <code>cheap_prices.txt</code>. On Ubuntu 22.04 the LLVM version must be changed: see <a href="#deps">section 2</a>.
+</div>
+
+<div class="toc">
+<ol>
+  <li><a href="#overview">What the project is</a></li>
+  <li><a href="#deps">Installing the dependencies</a></li>
+  <li><a href="#build">Compiling the program</a></li>
+  <li><a href="#run">Running the program</a></li>
+  <li><a href="#test">Running the tests</a></li>
+  <li><a href="#lang">Using the language</a></li>
+  <li><a href="#examples">Examples</a></li>
+  <li><a href="#errors">Errors and exit codes</a></li>
+  <li><a href="#arch">How the compiler works</a></li>
+  <li><a href="#files">Every file in the project</a></li>
+  <li><a href="#trouble">Troubleshooting</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="overview">1. What the project is</h2>
+<p>The project implements a small programming language for <b>extracting data from saved (static) HTML pages</b>: a program opens a local
+<code>.html</code> file, grabs the text of every element that matches a CSS selector (as text or as numbers), processes it with ordinary variables,
+loops, conditions, arrays (<i>rows</i>) and functions (<i>recipes</i>), and prints or saves the result. The language is also complete enough
+to write general algorithms such as Insertion Sort and Merge Sort.</p>
+
+<p>One program, <code>dslc</code>, contains both phases of the assignment:</p>
+<table>
+  <tr><th style="width:22%">Phase</th><th>What it does</th><th style="width:28%">Command</th></tr>
+  <tr><td><b>Phase 1</b>: interpreter</td><td>Flex scans the source, Bison parses it, and the program is executed directly. <b>No intermediate code</b> is produced.</td><td><code>./dslc prog.dsl --run</code></td></tr>
+  <tr><td><b>Phase 2</b>: AOT compiler</td><td>The same Flex/Bison front end, but the program is translated into <b>LLVM IR</b> (<code>.ll</code>). The IR is optimized with LLVM <code>opt</code> and compiled into a native executable with <code>clang</code>.</td><td><code>./dslc prog.dsl -o prog.ll</code><br>or in one step:<br><code>./aot.sh prog.dsl</code></td></tr>
+</table>
+<p>For the same program, both phases produce the same output. The test suite checks this for every test program.</p>
+
+<!-- ============================================================ -->
+<h2 id="deps">2. Installing the dependencies</h2>
+<p>The project targets <b>Linux</b>. It was built and fully tested on <b>Ubuntu 24.04 LTS</b> (GNU Make 4.3, g++ 13, Flex 2.6.4,
+Bison 3.8.2, libxml2 2.9.14, clang/LLVM 20). Any LLVM version from 15 on works.</p>
+
+<table>
+  <tr><th style="width:22%">Package (Ubuntu)</th><th style="width:16%">Needed for</th><th>Why</th></tr>
+  <tr><td><code>build-essential</code></td><td>both phases</td><td><code>g++</code> (C++17), <code>gcc</code> and <code>make</code> build the compiler.</td></tr>
+  <tr><td><code>flex</code></td><td>both phases</td><td>Generates the scanner from <code>src/lexer.l</code>.</td></tr>
+  <tr><td><code>bison</code> (3.x)</td><td>both phases</td><td>Generates the parser from <code>src/parser.y</code>.</td></tr>
+  <tr><td><code>libxml2-dev</code></td><td>both phases</td><td>HTML parser used by the runtime library for <code>open</code> / <code>grab</code>. Provides <code>xml2-config</code>.</td></tr>
+  <tr><td><code>clang</code>, <code>llvm</code> (<b>version 15 or newer</b>)</td><td>Phase 2</td><td><code>opt</code> (middle-end), <code>llvm-as</code> (IR check), <code>clang</code> (IR to native code, linking). The IR uses opaque pointers (<code>ptr</code>), which need LLVM 15+.</td></tr>
+</table>
+
+<h3>Ubuntu 24.04 / Debian 13 / Linux Mint 22 (default LLVM is new enough)</h3>
+<pre><code>sudo apt update
+sudo apt install -y build-essential flex bison libxml2-dev clang llvm</code></pre>
+
+<h3>Ubuntu 22.04 / Debian 12 (default LLVM is 14: install version 15 explicitly)</h3>
+<pre><code>sudo apt update
+sudo apt install -y build-essential flex bison libxml2-dev clang-15 llvm-15
+export PATH=/usr/lib/llvm-15/bin:$PATH     # so that clang, opt and llvm-as mean version 15
+                                           # (add this line to ~/.bashrc to keep it)</code></pre>
+
+<h3>Fedora / RHEL</h3>
+<pre><code>sudo dnf install -y gcc-c++ make flex bison libxml2-devel clang llvm</code></pre>
+
+<h3>Check the installation</h3>
+<pre><code>g++ --version            # any version with C++17
+flex --version           # 2.6.x
+bison --version          # 3.x
+xml2-config --version    # 2.9 or newer
+clang --version          # 15 or newer
+opt --version            # same version as clang
+llvm-as --version</code></pre>
+<p class="small">Windows: use WSL 2 with Ubuntu and follow the Ubuntu steps inside WSL. Native Windows builds are not supported.</p>
+
+<!-- ============================================================ -->
+<h2 id="build">3. Compiling the program</h2>
+<p>From the project folder:</p>
+<pre><code>make            # builds ./dslc (the compiler and interpreter)
+make clean      # removes ./dslc and the build/ folder</code></pre>
+<p><code>make</code> runs Bison on <code>src/parser.y</code> and Flex on <code>src/lexer.l</code> (into <code>build/</code>), compiles every C++ file in
+<code>src/</code> and the C runtime <code>runtime/rt.c</code>, and links them with libxml2 into the executable <code>./dslc</code>. Bison runs
+with <code>-Werror -Wcounterexamples</code>, so the grammar builds with <b>zero conflicts</b> and the whole build has no warnings.</p>
+<pre class="out"><code>$ make
+bison -Wall -Wcounterexamples -Werror -d -o build/parser.tab.cpp src/parser.y
+flex -o build/lexer.yy.cpp src/lexer.l
+g++ -std=c++17 -Wall -Wextra -g ... -c -o build/ast.o src/ast.cpp
+...
+g++ -std=c++17 -Wall -Wextra -g -o dslc build/ast.o ... build/rt.o -lxml2</code></pre>
+<p class="small">If <code>aot.sh</code> or <code>tests/run.sh</code> report “Permission denied” (some zip tools drop the executable bit), run <code>chmod +x aot.sh tests/run.sh</code>.</p>
+
+<!-- ============================================================ -->
+<h2 id="run">4. Running the program</h2>
+<pre><code>./dslc &lt;file.dsl&gt; (--run | -o &lt;out.ll&gt; | --check | --ast | --ast-opt)</code></pre>
+<table>
+  <tr><th style="width:27%">Command</th><th>What it does</th></tr>
+  <tr><td><code>./dslc prog.dsl --run</code></td><td><b>Phase 1.</b> Parses, checks and interprets the program.</td></tr>
+  <tr><td><code>./dslc prog.dsl -o prog.ll</code></td><td><b>Phase 2.</b> Parses, checks, optimizes and writes LLVM IR to <code>prog.ll</code>.</td></tr>
+  <tr><td><code>./aot.sh prog.dsl [-o exe]</code></td><td><b>Phase 2 in one step:</b> <code>dslc -o</code>, then <code>opt -O2</code>, then <code>clang</code> + runtime + libxml2. Builds a native executable (default name: <code>prog</code>, next to <code>prog.dsl</code>) and keeps <code>prog.ll</code>.</td></tr>
+  <tr><td><code>./dslc prog.dsl --check</code></td><td>Parses and runs semantic analysis only (exit code 0 = program is correct).</td></tr>
+  <tr><td><code>./dslc prog.dsl --ast</code></td><td>Prints the abstract syntax tree built by the Bison parser.</td></tr>
+  <tr><td><code>./dslc prog.dsl --ast-opt</code></td><td>Prints the tree after constant folding and dead-code removal.</td></tr>
+</table>
+
+<div class="box note"><b>Run programs from the folder that holds their HTML files.</b> File names in <code>open</code> and <code>save</code>
+are relative to the <i>current directory</i>, so for the examples use <code>cd examples</code> first and call <code>../dslc</code> and <code>../aot.sh</code>.</div>
+
+<h3>Phase 1: interpret</h3>
+<pre class="out"><code>$ cd examples
+$ ../dslc prices.dsl --run
+4
+$ cat cheap_prices.txt
+-15
+150
+320
+450</code></pre>
+
+<h3>Phase 2: compile ahead of time, in one step</h3>
+<pre class="out"><code>$ ../aot.sh prices.dsl
+built prices (LLVM IR in prices.ll)
+$ ./prices
+4</code></pre>
+
+<h3>Phase 2: the same steps by hand</h3>
+<pre><code>../dslc prices.dsl -o prices.ll                  # 1. front end + LLVM IR generation
+llvm-as prices.ll -o /dev/null                   # 2. (optional) check that the IR is valid
+opt -O2 -S prices.ll -o prices.opt.ll            # 3. middle-end: optimize the IR
+clang -Wno-override-module prices.opt.ll ../runtime/rt.c -I../runtime \
+      $(xml2-config --cflags --libs) -o prices   # 4. back end: native code + runtime + libxml2
+./prices                                         # 5. run</code></pre>
+<p>Any middle-end that reads and writes textual LLVM IR can replace step 3 (for example <code>opt -passes=mem2reg -S</code>, which is what the
+test runner uses by default). <code>aot.sh</code> honours <code>OPT</code>, <code>CLANG</code> and <code>MIDDLE_END_FLAGS</code>
+environment variables, for example <code>OPT=opt-15 CLANG=clang-15 ./aot.sh prog.dsl</code>.</p>
+
+<h3>What the generated IR looks like</h3>
+<p>For <code>show 2 + 3 * 4</code>, the AST optimizer folds the constant before IR generation:</p>
+<pre class="out"><code>$ echo 'show 2 + 3 * 4' &gt; a.dsl &amp;&amp; ./dslc a.dsl -o a.ll &amp;&amp; tail -5 a.ll
+define i32 @main() {
+entry:
+  call void @rt_show_num(i64 14)
+  ret i32 0
+}</code></pre>
+<p>A recursive recipe (from <code>tests/ok/recursion.dsl</code>) becomes an ordinary LLVM function:</p>
+<pre class="out"><code>define i64 @dsl_fact(i64 %arg.n) {
+entry:
+  %v1.n = alloca i64
+  store i64 %arg.n, ptr %v1.n
+  %t1 = load i64, ptr %v1.n
+  %t2 = icmp sle i64 %t1, 1
+  %t3 = zext i1 %t2 to i64
+  %t4 = icmp ne i64 %t3, 0
+  br i1 %t4, label %if.then.1, label %if.end.2
+if.then.1:
+  ret i64 1
+if.end.2:
+  %t5 = load i64, ptr %v1.n
+  %t6 = load i64, ptr %v1.n
+  %t7 = sub i64 %t6, 1
+  %t8 = call i64 @dsl_fact(i64 %t7)
+  %t9 = mul i64 %t5, %t8
+  ret i64 %t9
+}</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="test">5. Running the tests</h2>
+<pre><code>make test</code></pre>
+<p>This runs three test suites:</p>
+<ol>
+  <li><b>Runtime self-test</b> (<code>build/test_rt</code>): opens both example pages and checks the runtime functions (selectors, <code>grab</code>, number conversion, rows).</li>
+  <li><b>Phase 1</b> (<code>tests/run.sh --run</code>): every program in <code>tests/ok/</code> is interpreted and its output compared with the
+  <code>.out</code> file; every program in <code>tests/err/</code> must fail with the expected line number and message; every program in
+  <code>tests/opt/</code> must give the expected optimized AST.</li>
+  <li><b>Phase 2</b> (<code>tests/run.sh --compile</code>): every program in <code>tests/ok/</code> is compiled to LLVM IR, checked with <code>llvm-as</code>,
+  optimized with <code>opt</code>, linked with <code>clang</code>, run, and its output compared with the same <code>.out</code> file.
+  This step is skipped with a message if <code>clang</code>/<code>llvm-as</code> are not installed.</li>
+</ol>
+<div class="label">Expected result</div>
+<pre class="out"><code>all runtime checks passed (0 failures)
+./tests/run.sh --run
+all passed: 75 passed, 0 skipped (mode --run)
+all passed: 26 compiled and matched, 0 skipped (mode --compile)</code></pre>
+<p>Other ways to run the tests: <code>tests/run.sh --check</code>, <code>tests/run.sh --ast</code>, and with a different middle-end:
+<code>MIDDLE_END="opt -O2 -S" tests/run.sh --compile</code>.</p>
+
+<!-- ============================================================ -->
+<h2 id="lang" class="pb">6. Using the language</h2>
+<p>Source files use the extension <code>.dsl</code>. A program is a sequence of <b>recipe</b> (function) definitions and top-level
+statements in any order. The top-level statements are the main program and run from top to bottom.</p>
+
+<h3>Lines, blocks, comments</h3>
+<ul>
+  <li>One statement per line; the end of the line ends the statement (no semicolons).</li>
+  <li>A block opens with <code>&gt;&gt;</code> at the end of a line and closes with <code>&lt;&lt;</code> on its own line. <code>else</code> goes on
+  the closing line: <code>&lt;&lt; else &gt;&gt;</code> or <code>&lt;&lt; else if cond &gt;&gt;</code>.</li>
+  <li><code>#</code> starts a comment to the end of the line. Blank lines are ignored.</li>
+</ul>
+
+<h3>Types</h3>
+<table>
+  <tr><th style="width:18%">Type</th><th>Values</th></tr>
+  <tr><td><code>num</code></td><td>64-bit signed integer. Arithmetic wraps on overflow. Comparisons and logic give 1 (true) or 0 (false); any non-zero value is true.</td></tr>
+  <tr><td><code>text</code></td><td>Immutable string: <code>"..."</code> with escapes <code>\"</code>, <code>\\</code>, <code>\n</code>. Only <code>==</code> and <code>!=</code> apply.</td></tr>
+  <tr><td><code>row num</code>, <code>row text</code></td><td>Fixed-size array indexed from 0, made by <code>row num of n</code> / <code>row text of n</code> (filled with 0 or <code>""</code>) or by <code>grab</code>. Rows are references (passing one to a recipe does not copy it). <code>count(r)</code> gives the size.</td></tr>
+</table>
+
+<h3>Statements</h3>
+<table>
+  <tr><th style="width:42%">Syntax</th><th>Meaning</th></tr>
+  <tr><td><code>hold x &lt;- expr</code></td><td>Declare a variable; its type is the type of <code>expr</code> and never changes.</td></tr>
+  <tr><td><code>x &lt;- expr</code> &nbsp; <code>r[i] &lt;- expr</code></td><td>Assign to a variable / a row element (same type required).</td></tr>
+  <tr><td><code>if c &gt;&gt; ... &lt;&lt; else &gt;&gt; ... &lt;&lt;</code></td><td>Condition; <code>else</code> and <code>else if</code> are optional.</td></tr>
+  <tr><td><code>while c &gt;&gt; ... &lt;&lt;</code></td><td>Loop while <code>c</code> is non-zero.</td></tr>
+  <tr><td><code>for i from a until b &gt;&gt; ... &lt;&lt;</code></td><td><code>i</code> = a, a+1, …, b-1 (b excluded). Bounds are evaluated once. <code>i</code> is read-only.</td></tr>
+  <tr><td><code>recipe f(num a, row text t) -&gt; num &gt;&gt; ... &lt;&lt;</code></td><td>Define a recipe. <code>-&gt; type</code> is optional. Recursion is allowed; recipes can be called before they are defined.</td></tr>
+  <tr><td><code>give expr</code> &nbsp; <code>give</code></td><td>Return from a recipe (with or without a value). Without a <code>give</code>, a recipe returns 0, <code>""</code> or an empty row.</td></tr>
+  <tr><td><code>f(x, y)</code></td><td>Call a recipe as a statement.</td></tr>
+  <tr><td><code>open "page.html"</code></td><td>Read and parse a local HTML file; it becomes the current page.</td></tr>
+  <tr><td><code>show expr</code></td><td>Print a value and a newline (a row prints one element per line).</td></tr>
+  <tr><td><code>save expr to "file.txt"</code></td><td>Write a value to a file, replacing it (a row: one element per line).</td></tr>
+</table>
+
+<h3>Expressions (lowest to highest precedence)</h3>
+<table>
+  <tr><th style="width:30%">Operators</th><th>Notes</th></tr>
+  <tr><td><code>or</code></td><td>Short-circuit: the right side runs only if the left is 0.</td></tr>
+  <tr><td><code>and</code></td><td>Short-circuit: the right side runs only if the left is non-zero.</td></tr>
+  <tr><td><code>not</code></td><td>1 if the operand is 0, else 0.</td></tr>
+  <tr><td><code>== != &lt; &lt;= &gt; &gt;=</code></td><td>Not chainable. <code>==</code>/<code>!=</code> take two nums or two texts; the rest take nums.</td></tr>
+  <tr><td><code>+ -</code></td><td>num only.</td></tr>
+  <tr><td><code>* / %</code></td><td>num only; <code>/</code> truncates toward zero; dividing by zero is a run-time error.</td></tr>
+  <tr><td>unary <code>-</code></td><td>num only.</td></tr>
+</table>
+<p>Primary expressions: numbers, texts, variables, <code>r[i]</code>, recipe calls, <code>( expr )</code>, <code>count(r)</code>,
+<code>row num of n</code>, <code>row text of n</code>, and <code>grab</code>.</p>
+
+<h3>Extracting data: <code>grab</code></h3>
+<ul>
+  <li><code>grab "selector"</code> → a <code>row text</code> with the text of every matching element of the current page, in document order,
+  trimmed, with inner whitespace collapsed to one space.</li>
+  <li><code>grab "selector" as num</code> → a <code>row num</code>. Each element's text gives its first integer, ignoring commas between digits and
+  dropping any fraction: <code>"Rs. 1,299.50"</code> → 1299, <code>"-15"</code> → -15. Text with no digits is a run-time error.</li>
+  <li>Supported selectors: <code>tag</code>, <code>.class</code>, <code>#id</code>, <code>tag.class</code>, <code>tag#id</code>, and these
+  separated by spaces for descendants (<code>div.product span.price</code>). The compiler rejects anything else, for example <code>div &gt; p</code> or <code>a[href]</code>.</li>
+  <li><code>open</code> and <code>grab</code> are only allowed in the main program, and every <code>grab</code> must come after an <code>open</code>
+  in the same or an enclosing block (checked at compile time).</li>
+</ul>
+<p class="small">The full language definition and grammar (EBNF) are in <code>docs/Compiler_Project_Proposal_revised.docx</code>.</p>
+
+<!-- ============================================================ -->
+<h2 id="examples" class="pb">7. Examples</h2>
+<p>All four example programs are in <code>examples/</code> with their expected output (<code>*.out</code>) and the two test pages
+<code>shop.html</code> and <code>news.html</code>. Run them from that folder.</p>
+
+<h3>7.1 Prices: extract, sort, filter, save (<code>examples/prices.dsl</code>)</h3>
+<p><code>shop.html</code> contains six products with prices such as <code>Rs. 1,299.50</code>, <code>Rs. 450</code> and <code>-15</code>. The program
+grabs them as numbers, sorts them with the <code>msort</code>/<code>merge</code> recipes (Merge Sort, shown in 7.4), keeps the ones under 500,
+saves them, and prints how many there are.</p>
+<pre><code>open "shop.html"
+hold prices &lt;- grab "span.price" as num
+hold n &lt;- count(prices)
+hold tmp &lt;- row num of n
+msort(prices, tmp, 0, n - 1)
+# prices are now ascending, so the cheap ones come first
+hold k &lt;- 0
+while k &lt; n and prices[k] &lt; 500 &gt;&gt;
+    k &lt;- k + 1
+&lt;&lt;
+hold cheap &lt;- row num of k
+for i from 0 until k &gt;&gt;
+    cheap[i] &lt;- prices[i]
+&lt;&lt;
+save cheap to "cheap_prices.txt"
+show k</code></pre>
+<div class="label">Run (both phases print the same)</div>
+<pre class="out"><code>$ ../dslc prices.dsl --run
+4
+$ cat cheap_prices.txt
+-15
+150
+320
+450
+$ ../aot.sh prices.dsl &amp;&amp; ./prices
+built prices (LLVM IR in prices.ll)
+4</code></pre>
+
+<h3>7.2 Headlines: text extraction (<code>examples/headlines.dsl</code>)</h3>
+<pre><code>open "news.html"
+hold titles &lt;- grab "div.story h2"
+show count(titles)
+for i from 0 until count(titles) &gt;&gt;
+    if titles[i] != "Advertisement" &gt;&gt;
+        show titles[i]
+    &lt;&lt;
+&lt;&lt;
+save titles to "headlines.txt"</code></pre>
+<pre class="out"><code>$ ../dslc headlines.dsl --run
+4
+Budget passes after long debate
+Local team wins "the cup"
+Rain expected this weekend</code></pre>
+<p>The heading <code>Site Menu</code> is not inside a <code>div.story</code>, so it is not selected. The line break and extra spaces inside
+the first headline are collapsed. <code>headlines.txt</code> contains all four titles, including <code>Advertisement</code>.</p>
+
+<h3>7.3 Insertion Sort (<code>examples/isort.dsl</code>)</h3>
+<pre><code>recipe isort(row num r, num n) &gt;&gt;
+    for i from 1 until n &gt;&gt;
+        hold key &lt;- r[i]
+        hold j &lt;- i - 1
+        while j &gt;= 0 and r[j] &gt; key &gt;&gt;      # short-circuit: r[-1] is never read
+            r[j + 1] &lt;- r[j]
+            j &lt;- j - 1
+        &lt;&lt;
+        r[j + 1] &lt;- key
+    &lt;&lt;
+&lt;&lt;
+
+hold data &lt;- row num of 6
+data[0] &lt;- 5
+data[1] &lt;- 2
+data[2] &lt;- 9
+data[3] &lt;- 1
+data[4] &lt;- 5
+data[5] &lt;- 3
+isort(data, count(data))
+for i from 0 until count(data) &gt;&gt;
+    show data[i]
+&lt;&lt;</code></pre>
+<pre class="out"><code>$ ../dslc isort.dsl --run        (or: ../aot.sh isort.dsl &amp;&amp; ./isort)
+1
+2
+3
+5
+5
+9</code></pre>
+
+<h3>7.4 Merge Sort with recursion (<code>examples/msort.dsl</code>)</h3>
+<pre><code>recipe merge(row num a, row num tmp, num lo, num mid, num hi) &gt;&gt;
+    hold i &lt;- lo
+    hold j &lt;- mid + 1
+    hold k &lt;- lo
+    while i &lt;= mid and j &lt;= hi &gt;&gt;
+        if a[i] &lt;= a[j] &gt;&gt;
+            tmp[k] &lt;- a[i]
+            i &lt;- i + 1
+        &lt;&lt; else &gt;&gt;
+            tmp[k] &lt;- a[j]
+            j &lt;- j + 1
+        &lt;&lt;
+        k &lt;- k + 1
+    &lt;&lt;
+    while i &lt;= mid &gt;&gt;
+        tmp[k] &lt;- a[i]
+        i &lt;- i + 1
+        k &lt;- k + 1
+    &lt;&lt;
+    while j &lt;= hi &gt;&gt;
+        tmp[k] &lt;- a[j]
+        j &lt;- j + 1
+        k &lt;- k + 1
+    &lt;&lt;
+    for t from lo until hi + 1 &gt;&gt;
+        a[t] &lt;- tmp[t]
+    &lt;&lt;
+&lt;&lt;
+
+recipe msort(row num a, row num tmp, num lo, num hi) &gt;&gt;
+    if lo &lt; hi &gt;&gt;
+        hold mid &lt;- (lo + hi) / 2
+        msort(a, tmp, lo, mid)
+        msort(a, tmp, mid + 1, hi)
+        merge(a, tmp, lo, mid, hi)
+    &lt;&lt;
+&lt;&lt;
+
+hold data &lt;- row num of 7
+data[0] &lt;- 38
+data[1] &lt;- 27
+data[2] &lt;- 43
+data[3] &lt;- 3
+data[4] &lt;- 9
+data[5] &lt;- 82
+data[6] &lt;- 10
+hold tmp &lt;- row num of count(data)
+msort(data, tmp, 0, count(data) - 1)
+for i from 0 until count(data) &gt;&gt;
+    show data[i]
+&lt;&lt;</code></pre>
+<pre class="out"><code>$ ../dslc msort.dsl --run
+3
+9
+10
+27
+38
+43
+82</code></pre>
+
+<h3>7.5 A recipe that returns a value</h3>
+<pre><code>recipe fact(num n) -&gt; num &gt;&gt;
+    if n &lt;= 1 &gt;&gt;
+        give 1
+    &lt;&lt;
+    give n * fact(n - 1)
+&lt;&lt;
+show fact(10)          # prints 3628800</code></pre>
+
+<h3>7.6 Programs with errors</h3>
+<p>A compile-time error (both phases stop before running anything; semantic analysis reports every error it finds):</p>
+<pre><code>hold x &lt;- 5
+show x + "a"
+show y</code></pre>
+<pre class="err"><code>$ ./dslc bad.dsl --run
+bad.dsl:2: error: operator '+' needs num operands, found num and text
+bad.dsl:3: error: undeclared variable 'y'</code></pre>
+<p>A run-time error (the same message from the interpreter and from the compiled executable):</p>
+<pre><code>hold r &lt;- row num of 2
+show r[5]</code></pre>
+<pre class="err"><code>$ ./dslc oob.dsl --run
+line 2: runtime error: row index 5 out of bounds (size 2)
+$ ./aot.sh oob.dsl &amp;&amp; ./oob
+built oob (LLVM IR in oob.ll)
+line 2: runtime error: row index 5 out of bounds (size 2)</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="errors">8. Errors and exit codes</h2>
+<table>
+  <tr><th style="width:20%">Kind</th><th style="width:36%">Format (on standard error)</th><th>Examples</th></tr>
+  <tr><td>Lexical / syntax</td><td><code>prog.dsl:LINE: error: message</code><br>stops at the first one</td><td>invalid character, unterminated text, single <code>=</code>, <code>a &lt; b &lt; c</code>, <code>else</code> on a new line, missing <code>&lt;&lt;</code></td></tr>
+  <tr><td>Semantic</td><td><code>prog.dsl:LINE: error: message</code><br>all errors are reported, sorted by line</td><td>undeclared variable, undefined recipe, declared twice, type mismatch, wrong argument count or type, <code>give</code> misuse, assigning to a <code>for</code> variable, invalid selector, <code>open</code>/<code>grab</code> in a recipe, <code>grab</code> without <code>open</code></td></tr>
+  <tr><td>Run time</td><td><code>line LINE: runtime error: message</code></td><td>page file cannot be read, index out of bounds, negative row size, division or modulo by zero, <code>grab ... as num</code> with no digits, output file cannot be written</td></tr>
+</table>
+<table>
+  <tr><th style="width:20%">Exit code</th><th>Meaning</th></tr>
+  <tr><td><code>0</code></td><td>Success.</td></tr>
+  <tr><td><code>1</code></td><td>Any compile-time or run-time error (also for compiled executables).</td></tr>
+  <tr><td><code>2</code></td><td>Wrong command line; <code>dslc</code> prints its usage line.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="arch">9. How the compiler works</h2>
+<pre><code>             prog.dsl
+                │
+   Flex  ─────► lexer.l      tokens + line numbers (NL token ends each statement)
+   Bison ─────► parser.y     grammar actions build the syntax tree (ast.h)
+                │
+           sema.cpp          2 passes: recipe signatures, then scopes, types and all checks
+                │
+     ┌──────────┴──────────────┐
+     │ --run   (Phase 1)       │ -o   (Phase 2)
+ interp.cpp                 opt.cpp          constant folding, code after give removed
+ executes the tree          codegen.cpp      LLVM IR text: expressions, control flow, @main
+ directly                   codegen_recipes.cpp  recipes, calls, give, rows, count
+     │                           │
+     │                      prog.ll ─► opt (middle-end) ─► clang ─► native executable
+     │                           │
+     └──── runtime/rt.c (open, grab, show, save, bounds/zero checks; uses libxml2) ────┘</code></pre>
+<ul>
+  <li><b>Phase 1, Flex and Bison:</b> the scanner and parser are generated only by Flex and Bison. The Bison grammar actions build a syntax
+  tree, which the interpreter executes directly. No intermediate code (IR, bytecode) is produced on this path. A tree is needed because loops
+  and recipe calls must run statements many times, but Bison actions run only once, while the file is being read.</li>
+  <li><b>Phase 2, AOT:</b> the same Bison front end feeds the IR generator. The generated <code>.ll</code> file is plain textual LLVM IR
+  (opaque pointers), so the standard LLVM tools can optimize it and compile it into an executable.</li>
+  <li><b>Values:</b> <code>num</code> = <code>i64</code>; <code>text</code> = pointer to a C string; rows = pointer to
+  <code>%Row = type { i64 len, i64 is_text, ptr data }</code>. Every variable is an <code>alloca</code> (promoted to registers by
+  <code>opt</code>). Row access calls <code>rt_check_index</code> first.</li>
+  <li><b>Same behaviour in both phases:</b> both use the same runtime library and the same order of evaluation, so the compiled program
+  always prints what the interpreter prints. <code>make test</code> checks this.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="files" class="pb">10. Every file in the project</h2>
+<p class="small">Generated by the build, not part of the source: <code>dslc</code> (the compiler), <code>build/</code> (Bison/Flex output,
+object files, <code>test_rt</code>), and files the programs write (<code>*.ll</code>, <code>cheap_prices.txt</code>, <code>headlines.txt</code>,
+executables built by <code>aot.sh</code>).</p>
+
+<h3>Top level</h3>
+<table class="files">
+  <tr><th style="width:34%">File</th><th>Description</th></tr>
+  <tr><td><code>README.pdf</code></td><td>This document.</td></tr>
+  <tr><td><code>Makefile</code></td><td>Builds <code>./dslc</code> (<code>make</code>), runs all tests (<code>make test</code>), runs only the runtime self-test (<code>make test-rt</code>), cleans (<code>make clean</code>).</td></tr>
+  <tr><td><code>aot.sh</code></td><td>Phase 2 in one command: <code>.dsl</code> → LLVM IR → <code>opt -O2</code> → <code>clang</code> + runtime → native executable.</td></tr>
+  <tr><td><code>README.md</code></td><td>Short developer overview: team ownership, folders, commands, working rules.</td></tr>
+  <tr><td><code>SETUP.md</code></td><td>Developer workspace setup (packages, WSL, VS Code, Git workflow).</td></tr>
+  <tr><td><code>PROJECT_COMPLETION_STEPS.md</code></td><td>Log of how Phase 2 was finished (<code>codegen_recipes.cpp</code>) and tested.</td></tr>
+  <tr><td><code>Compiler Project Work Plan.pdf</code><br><code>Compiler_Project_Proposal_revised.docx</code></td><td>Copies of the work plan and the language proposal (the same files are in <code>docs/</code>).</td></tr>
+  <tr><td><code>.gitignore</code></td><td>Keeps build output and generated files out of Git.</td></tr>
+  <tr><td><code>.gitattributes</code></td><td>Keeps <code>*.sh</code> scripts with Linux (LF) line endings, even when checked out on Windows.</td></tr>
+  <tr><td><code>.github/pull_request_template.md</code></td><td>Checklist shown when a team member opens a pull request.</td></tr>
+  <tr><td><code>.vscode/extensions.json</code>, <code>launch.json</code>, <code>tasks.json</code></td><td>VS Code settings: recommended extensions, debugger setup for <code>dslc</code>, build/test tasks.</td></tr>
+</table>
+
+<h3><code>src/</code>: the compiler (C++17, Flex, Bison)</h3>
+<table class="files">
+  <tr><th style="width:34%">File</th><th>Description</th></tr>
+  <tr><td><code>lexer.l</code></td><td><b>Flex</b> scanner: keywords, identifiers, numbers, text literals with escapes, operators (longest match), comments, the NL token, line numbers, lexical errors.</td></tr>
+  <tr><td><code>parser.y</code></td><td><b>Bison</b> grammar of the language (zero conflicts); its actions build the syntax tree; syntax errors; <code>parseFile()</code>.</td></tr>
+  <tr><td><code>frontend.h</code></td><td>Interface between the driver and the scanner/parser (<code>parseFile</code>, <code>fatalError</code>).</td></tr>
+  <tr><td><code>ast.h</code>, <code>ast.cpp</code></td><td>Syntax tree node types (expressions, statements, recipes, program) and the <code>--ast</code> printer.</td></tr>
+  <tr><td><code>sema.h</code>, <code>sema.cpp</code></td><td>Semantic analysis: scoped symbol table, type checking, recipe/<code>give</code> rules, selector and <code>open</code>/<code>grab</code> placement checks, error reporting.</td></tr>
+  <tr><td><code>interp.h</code>, <code>interp.cpp</code></td><td><b>Phase 1</b> interpreter: executes the checked tree (frames per call, short-circuit logic, <code>give</code>, default return values).</td></tr>
+  <tr><td><code>opt.h</code>, <code>opt.cpp</code></td><td>AST optimizations before IR generation: constant folding, removal of statements after <code>give</code>.</td></tr>
+  <tr><td><code>codegen.h</code>, <code>codegen.cpp</code></td><td><b>Phase 2</b> IR generator, core: helpers, expressions, variables, <code>if</code>/<code>while</code>/<code>for</code>, short-circuit <code>and</code>/<code>or</code>, runtime calls, <code>@main</code>, module output.</td></tr>
+  <tr><td><code>codegen_recipes.cpp</code></td><td><b>Phase 2</b> IR generator: recipes (<code>define</code>), calls, <code>give</code>, <code>row ... of</code>, row element load/store, <code>count</code>.</td></tr>
+  <tr><td><code>main.cpp</code></td><td>The <code>dslc</code> driver: command-line options, runs the stages, error and exit-code handling.</td></tr>
+</table>
+
+<h3><code>runtime/</code>: the C runtime library (used by both phases)</h3>
+<table class="files">
+  <tr><th style="width:34%">File</th><th>Description</th></tr>
+  <tr><td><code>rt.h</code></td><td>Runtime interface: the <code>Row</code> layout and every <code>rt_*</code> function, called by the interpreter and by the generated IR.</td></tr>
+  <tr><td><code>rt.c</code></td><td>Implementation: <code>open</code> (libxml2 HTML parser), selector parser and validator, <code>grab</code> (text/number conversion), rows, <code>show</code>, <code>save</code>, bounds and division checks, run-time errors.</td></tr>
+  <tr><td><code>test_rt.c</code></td><td>Standalone self-test of the runtime against <code>shop.html</code> and <code>news.html</code> (<code>make test-rt</code>).</td></tr>
+</table>
+
+<h3><code>examples/</code></h3>
+<table class="files">
+  <tr><th style="width:34%">File</th><th>Description</th></tr>
+  <tr><td><code>prices.dsl</code> / <code>.out</code></td><td>Grab prices as numbers, Merge Sort, keep those under 500, save to <code>cheap_prices.txt</code> (section 7.1).</td></tr>
+  <tr><td><code>headlines.dsl</code> / <code>.out</code></td><td>Grab headlines as text, skip ads, save to <code>headlines.txt</code> (7.2).</td></tr>
+  <tr><td><code>isort.dsl</code> / <code>.out</code></td><td>Insertion Sort (7.3).</td></tr>
+  <tr><td><code>msort.dsl</code> / <code>.out</code></td><td>Recursive Merge Sort (7.4).</td></tr>
+  <tr><td><code>shop.html</code>, <code>news.html</code></td><td>Saved static test pages used by the examples and tests.</td></tr>
+</table>
+
+<h3><code>tests/</code></h3>
+<table class="files">
+  <tr><th style="width:34%">File</th><th>Description</th></tr>
+  <tr><td><code>run.sh</code></td><td>Test runner (<code>--run</code>, <code>--check</code>, <code>--ast</code>, <code>--compile</code>), used by <code>make test</code>.</td></tr>
+  <tr><td><code>ok/*.dsl</code> + <code>ok/*.out</code></td><td>26 correct programs with their expected output. Used by both phases.</td></tr>
+  <tr><td><code>err/*.dsl</code></td><td>47 incorrect programs. The first line <code># expect: LINE: text</code> gives the expected error.</td></tr>
+  <tr><td><code>opt/*.dsl</code> + <code>opt/*.ast</code></td><td>2 programs with their expected optimized tree (<code>--ast-opt</code>).</td></tr>
+</table>
+<p class="label">tests/ok (26 programs, each with a .out file)</p>
+<table class="files">
+  <tr><td><code>cg_core</code></td><td>division by -1, short-circuit, else-if, text ==, for, while, grab, show/save of a row</td><td><code>logical_ops</code></td><td><code>and</code>, <code>or</code>, <code>not</code></td></tr>
+  <tr><td><code>default_return</code></td><td>recipe end without <code>give</code></td><td><code>msort</code></td><td>Merge Sort</td></tr>
+  <tr><td><code>div_mod</code></td><td><code>/</code> and <code>%</code> rounding and signs</td><td><code>overflow_wrap</code></td><td>64-bit wrap-around</td></tr>
+  <tr><td><code>else_if</code></td><td><code>else if</code> in a text recipe</td><td><code>prices</code></td><td>the prices example</td></tr>
+  <tr><td><code>escapes_and_comments</code></td><td>text escapes, comments</td><td><code>recursion</code></td><td>factorial, Fibonacci</td></tr>
+  <tr><td><code>fe_else_if_chain</code></td><td>long else-if chains</td><td><code>row_by_reference</code></td><td>rows passed by reference</td></tr>
+  <tr><td><code>fe_lexing</code></td><td>blank lines, longest match, escapes</td><td><code>rt_grab_prices</code></td><td><code>grab</code> as num and text</td></tr>
+  <tr><td><code>for_bounds_once</code></td><td><code>for</code> bounds evaluated once</td><td><code>rt_open_replaces_page</code></td><td>second <code>open</code> replaces the page</td></tr>
+  <tr><td><code>for_empty_range</code></td><td><code>for</code> that runs zero times</td><td><code>rt_save_and_reopen</code></td><td><code>save</code> format</td></tr>
+  <tr><td><code>gcd_params_assignable</code></td><td>assigning to parameters</td><td><code>scopes_shadowing</code></td><td>nested scopes</td></tr>
+  <tr><td><code>headlines</code></td><td>the headlines example</td><td><code>short_circuit</code></td><td>no out-of-bounds read thanks to <code>and</code></td></tr>
+  <tr><td><code>isort</code></td><td>Insertion Sort</td><td><code>show_row</code></td><td>printing a row</td></tr>
+  <tr><td><code>text_equality</code></td><td>text <code>==</code>/<code>!=</code></td><td><code>text_rows</code></td><td><code>row text</code></td></tr>
+</table>
+<p class="label">tests/err (47 programs; the name says which error is tested)</p>
+<p class="small cols">
+<b>Lexical:</b> lex_bad_escape, lex_invalid_char, lex_number_too_large, lex_single_equals, lex_unterminated_text.<br>
+<b>Syntax:</b> syn_chained_compare, syn_else_on_new_line, syn_expression_statement, syn_missing_close, syn_two_statements_one_line.<br>
+<b>Names:</b> undeclared_var, undefined_recipe, duplicate_var, duplicate_recipe, reserved_count, main_var_in_recipe.<br>
+<b>Types:</b> assign_type_mismatch, row_elem_mismatch, text_arith, text_order, num_text_compare, row_operator, cond_not_num,
+index_not_num, index_non_row, row_size_not_num, for_bound_not_num.<br>
+<b>Recipes:</b> arg_type_mismatch, wrong_arg_count, void_as_value, give_outside, give_wrong_type, give_value_no_return,
+bare_give_with_return.<br>
+<b>Loops:</b> assign_loop_var.<br>
+<b>Domain:</b> bad_selector, open_in_recipe, grab_in_recipe, grab_before_open, grab_after_if_open.<br>
+<b>Run time:</b> rt_div_zero, rt_mod_zero, rt_index_oob, rt_negative_size, rt_page_missing, rt_grab_no_digits, rt_save_unwritable.
+</p>
+<p class="label">tests/opt</p>
+<p class="small"><code>fold.dsl</code> / <code>fold.ast</code>: constant folding (and that <code>7 / 0</code> is not folded). <code>give.dsl</code> / <code>give.ast</code>: statements after <code>give</code> are removed.</p>
+
+<h3><code>docs/</code> and <code>dev/</code></h3>
+<table class="files">
+  <tr><th style="width:34%">File</th><th>Description</th></tr>
+  <tr><td><code>docs/Compiler_Project_Proposal_revised.docx</code></td><td>Language proposal: full language definition, EBNF grammar, error list, pipeline.</td></tr>
+  <tr><td><code>docs/Compiler_Project_Work_Plan.pdf</code></td><td>Project work plan and milestones.</td></tr>
+  <tr><td><code>docs/PHASE1_TASKS.md</code>, <code>docs/HANDOFF_NOTES.md</code></td><td>Team task checklist and the agreements between the parts.</td></tr>
+  <tr><td><code>docs/readme/README.html</code></td><td>Source of this PDF (regenerate it by printing the page to PDF).</td></tr>
+  <tr><td><code>dev/</code> (<code>Makefile</code>, <code>dev_main.cpp</code>, <code>rt_stub.c</code>, <code>run_tests.sh</code>)</td><td>Temporary harness used during development before the real parser and runtime existed. <b>Not used by the build.</b> It can be ignored or deleted.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="trouble">11. Troubleshooting</h2>
+<table>
+  <tr><th style="width:38%">Problem</th><th>Fix</th></tr>
+  <tr><td><code>llvm-as</code>, <code>opt</code> or <code>clang</code> report an error at the first <code>ptr</code> in the <code>.ll</code> file</td><td>LLVM is older than 15. Install <code>clang-15 llvm-15</code> (or newer) and put <code>/usr/lib/llvm-15/bin</code> first in <code>PATH</code> (section 2).</td></tr>
+  <tr><td><code>/usr/bin/env: 'bash\r': No such file or directory</code></td><td>The scripts have Windows line endings (the project was copied through Windows). Fix: <code>sed -i 's/\r$//' tests/run.sh aot.sh</code>.</td></tr>
+  <tr><td><code>xml2-config: not found</code> or <code>libxml/HTMLparser.h: No such file</code></td><td>Install <code>libxml2-dev</code> (Fedora: <code>libxml2-devel</code>).</td></tr>
+  <tr><td><code>bison: command not found</code> / <code>flex: command not found</code></td><td>Install <code>bison</code> and <code>flex</code>; then <code>make clean &amp;&amp; make</code>.</td></tr>
+  <tr><td><code>line 1: runtime error: cannot read page file 'shop.html'</code></td><td>Run the program from the folder that contains the page (<code>cd examples</code>).</td></tr>
+  <tr><td><code>aot.sh: ./dslc not found</code></td><td>Run <code>make</code> first.</td></tr>
+  <tr><td>“clang/llvm-as not installed: skipping the Phase 2 compile tests”</td><td>Install <code>clang</code> and <code>llvm</code> to run the Phase 2 tests.</td></tr>
+</table>
+
+</body>
+</html>

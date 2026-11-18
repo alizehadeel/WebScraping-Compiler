@@ -76,4 +76,4 @@ Written with the core codegen (`codegen.h` / `codegen.cpp`).
 6. **Rows.** `%Row = type { i64, i64, ptr }` (len, is_text, data) is declared at the top of the module.
    count = `getelementptr %Row, ptr %r, i32 0, i32 0` + load; data = field 2.
 7. **Check.** `make test` runs `tests/run.sh --compile`: every program that compiles must print exactly
-   its `.out` file. 16 programs are currently skipped waiting for this file.
+   its `.out` file. All 26 programs now compile and match (0 skipped).

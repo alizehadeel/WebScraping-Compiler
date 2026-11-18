@@ -1,0 +1,4 @@
+# Shell scripts must keep LF line endings. With core.autocrlf=true (the Windows
+# default) they are checked out as CRLF and bash in WSL/Linux fails with
+# "/usr/bin/env: 'bash\r': No such file or directory".
+*.sh text eol=lf
