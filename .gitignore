@@ -8,3 +8,4 @@ headlines.txt
 tests/ok/*.txt
 tests/ok/*.ll
 *.bin
+*.zip
